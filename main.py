@@ -1,6 +1,8 @@
 import grpc
 from concurrent import futures
 import os
+import io
+import PyPDF2
 from dotenv import load_dotenv
 import google.generativeai as genai
 
@@ -27,9 +29,29 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         print(f"   - Author    : {request.author}")
         print(f"   - Size      : {len(request.content)} bytes")
 
-        # AI Logic (RAG, LLM)
-        document_text = request.content.decode('utf-8')
-        print(f"   - Text      : {document_text}")
+        print(f"Extracting text from PDF...")
+        document_text = ""
+        
+        try:
+            # convert raw bytes into a file-like object in memory
+            pdf_stream = io.BytesIO(request.content)
+            pdf_reader = PyPDF2.PdfReader(pdf_stream)
+
+            # Loop through all pages and extract text
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    document_text += extracted + "\n"
+
+            print(f"   - Extracted : {len(document_text)} characters")
+
+        except Exception as e:
+            print(f"Error. Failed to extract PDF text: {e}")
+            return brain_pb2.DocumentResponse(
+                success=False,
+                message=f"System failed to read the PDF file: {str(e)}",
+                document_id="ERROR-PDF-001"
+            )
 
         print("Starting document analysis...")
 
