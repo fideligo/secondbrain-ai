@@ -1,5 +1,6 @@
 # Virtual Environment
 env/
+.env
 
 # Python Cache
 __pycache__/
@@ -8,3 +9,6 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+
+# Development
+cek_model.py
