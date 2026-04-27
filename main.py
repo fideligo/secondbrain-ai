@@ -4,7 +4,8 @@ import os
 import io
 import PyPDF2
 from dotenv import load_dotenv
-import google.generativeai as genai
+# import google.generativeai as genai # uncomment if use google ai studio
+import ollama # uncomment if use ollama
 
 import grpc_proto.brain_pb2 as brain_pb2
 import grpc_proto.brain_pb2_grpc as brain_pb2_grpc
@@ -15,9 +16,9 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY not set!")
 
-genai.configure(api_key=api_key)
+# genai.configure(api_key=api_key) # uncomment if gemini
 
-model = genai.GenerativeModel('gemini-2.5-flash')
+# model = genai.GenerativeModel('gemini-2.5-flash') # uncomment if gemini
 
 
 class BrainService(brain_pb2_grpc.BrainServiceServicer):
@@ -57,26 +58,40 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
         # PROMPT TO AI
         prompt = f"""
-        System Role: You are the core AI assistant for SecondBrain Enterprise.
-        Task: Analyze the provided document and generate a concise summary.
+        System Role: Core AI Assistant for SecondBrain Enterprise.
+        Context: You are analyzing a document for a professional user.
         
-        [Document Metadata]
-        - File Name: {request.file_name}
-        - Author: {request.author}
+        [USER DATA]
+        Target Name to Greet: {request.author}
+        File Name: {request.file_name}
         
-        [Document Content]
+        [DOCUMENT CONTENT]
         {document_text}
         
-        [Output Requirements]
-        1. Greet the author professionally by their name.
-        2. Provide a 2-3 sentence summary of the document's core message.
-        3. Maintain a formal, enterprise-grade tone.
+        [STRICT INSTRUCTIONS]
+        1. Greet the author specifically using the name: {request.author}. DO NOT use placeholders like [Author].
+        2. Provide a 2-3 sentence summary of the REAL project (Identify the app name, e.g., SuruhIN!).
+        3. Ignore generic template examples (like eco-friendly marketplaces) and focus on the user's specific input.
+        4. Use a formal, enterprise-grade tone.
         """
 
         try:
             # Call AI
-            response = model.generate_content(prompt)
-            ai_response = response.text
+
+            # uncomment if gemini
+            # response = model.generate_content(prompt)
+            # ai_response = response.text
+
+            # uncomment if ollama
+            response = ollama.generate(
+                model='qwen2.5:3b', 
+                prompt=prompt,
+                options={
+                    "num_predict": 250,  # Membatasi jumlah kata balasan agar tidak bertele-tele
+                    "temperature": 0.3,   # Membuat AI lebih fokus dan tidak ngawur
+                }
+            )
+            ai_response = response['response']
             print("[SUCCESS] AI analysis completed.")
             success_status = True
 
@@ -104,8 +119,7 @@ def serve():
     server.add_insecure_port('[::]:50051')
     server.start()
 
-    print("AI is running on port 50051...")
-    print("AI Engine Powered By Gemini")
+    print("AI is running!")
 
     server.wait_for_termination()
 
