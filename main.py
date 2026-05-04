@@ -58,21 +58,21 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
         # PROMPT TO AI
         prompt = f"""
-        System Role: Core AI Assistant for SecondBrain Enterprise.
-        Context: You are analyzing a document for a professional user.
-        
-        [USER DATA]
-        Target Name to Greet: {request.author}
-        File Name: {request.file_name}
-        
+        System Role: Strategic Document Analyzer.
+        User Name: {request.author}
+
+        [TASK]
+        Analyze the document below and provide a concise, professional summary.
+
+        [CONSTRAINTS]
+        - DO NOT use letter formats (No "Dear", "Best regards").
+        - START the response by addressing {request.author} directly (e.g., "Fideligo, here is the analysis:").
+        - IDENTIFY the main project name and its core mission.
+        - LIST 3 key takeaways or strategic goals found in the text.
+        - Use a professional, executive tone.
+
         [DOCUMENT CONTENT]
         {document_text}
-        
-        [STRICT INSTRUCTIONS]
-        1. Greet the author specifically using the name: {request.author}. DO NOT use placeholders like [Author].
-        2. Provide a 2-3 sentence summary of the REAL project (Identify the app name, e.g., SuruhIN!).
-        3. Ignore generic template examples (like eco-friendly marketplaces) and focus on the user's specific input.
-        4. Use a formal, enterprise-grade tone.
         """
 
         try:
@@ -84,11 +84,12 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
             # uncomment if ollama
             response = ollama.generate(
-                model='qwen2.5:3b', 
+                model='qwen2.5:3b',
                 prompt=prompt,
                 options={
-                    "num_predict": 250,  # Membatasi jumlah kata balasan agar tidak bertele-tele
-                    "temperature": 0.3,   # Membuat AI lebih fokus dan tidak ngawur
+                    "num_predict": 300,
+                    "temperature": 0.2, # Lower temperature for more factual and less "creative" output
+                    "top_p": 0.9
                 }
             )
             ai_response = response['response']
