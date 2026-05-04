@@ -4,6 +4,9 @@ import os
 import io
 import PyPDF2
 from dotenv import load_dotenv
+import chromadb
+from chromadb.utils import embedding_functions
+
 # import google.generativeai as genai # uncomment if use google ai studio
 import ollama # uncomment if use ollama
 
@@ -19,6 +22,25 @@ if not api_key:
 # genai.configure(api_key=api_key) # uncomment if gemini
 
 # model = genai.GenerativeModel('gemini-2.5-flash') # uncomment if gemini
+
+
+# Buat folder penyimpanan permanen
+chroma_client = chromadb.PersistentClient(path="./chroma_data")
+
+# Siapkan "mesin" pengubah teks ke angka
+default_ef = embedding_functions.DefaultEmbeddingFunction()
+
+# Buat wadah dokumen
+collection = chroma_client.get_or_create_collection(
+    name="documents", 
+    embedding_function=default_ef
+)
+
+def split_text(text, chunk_size=600, overlap=100):
+    chunks = []
+    for i in range(0, len(text), chunk_size - overlap):
+        chunks.append(text[i:i + chunk_size])
+    return chunks
 
 
 class BrainService(brain_pb2_grpc.BrainServiceServicer):
@@ -58,21 +80,17 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
         # PROMPT TO AI
         prompt = f"""
-        System Role: Strategic Document Analyzer.
-        User Name: {request.author}
-
-        [TASK]
-        Analyze the document below and provide a concise, professional summary.
-
-        [CONSTRAINTS]
-        - DO NOT use letter formats (No "Dear", "Best regards").
-        - START the response by addressing {request.author} directly (e.g., "Fideligo, here is the analysis:").
-        - IDENTIFY the main project name and its core mission.
-        - LIST 3 key takeaways or strategic goals found in the text.
-        - Use a professional, executive tone.
+        [STRICT INSTRUCTIONS]
+        - You MUST answer in ENGLISH.
+        - You MUST start the response by saying: "Hello {request.author}, here is your SecondBrain analysis:"
+        - Provide a VERY BRIEF executive summary.
+        - Focus ONLY on the provided content.
 
         [DOCUMENT CONTENT]
         {document_text}
+
+        [RE-CONFIRMATION]
+        Remember, {request.author}, answer in ENGLISH and stay concise.
         """
 
         try:
@@ -82,13 +100,27 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             # response = model.generate_content(prompt)
             # ai_response = response.text
 
-            # uncomment if ollama
+            try:
+                chunks = split_text(document_text)
+                ids = [f"{request.file_name}_{i}" for i in range(len(chunks))]
+                metadatas = [{"source": request.file_name, "author": request.author} for _ in chunks]
+
+                collection.add(
+                    documents=chunks,
+                    metadatas=metadatas,
+                    ids=ids
+                )
+                print(f"   - Saved {len(chunks)} chunks to Vector Database.")
+            except Exception as e:
+                print(f"   - Warning: Failed to save to ChromaDB: {e}")
+
+            # B. AI SUMMARY (Tambah num_predict agar tidak terpotong)
             response = ollama.generate(
                 model='qwen2.5:3b',
                 prompt=prompt,
                 options={
-                    "num_predict": 300,
-                    "temperature": 0.2, # Lower temperature for more factual and less "creative" output
+                    "num_predict": 1500,
+                    "temperature": 0.1,
                     "top_p": 0.9
                 }
             )
@@ -112,6 +144,54 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             message=ai_response, # Kita kirim jawaban AI ke Go!
             document_id="DOC-GEMINI-001"
         )
+    
+    def Chat(self, request, context):
+        print(f"Incoming query: {request.query}")
+
+        try:
+            # 1. SEARCH: Cari 3 potongan teks paling relevan di ChromaDB
+            # Ini akan mencari teks berdasarkan "makna", bukan cuma kata kunci
+            results = collection.query(
+                query_texts=[request.query],
+                n_results=7
+            )
+
+            # Gabungkan potongan teks yang ditemukan menjadi satu paragraf konteks
+            context_text = "\n".join(results['documents'][0]) if results['documents'] else ""
+
+            # DEBUG: Print teks yang ditemukan ke terminal Python
+            print(f"--- Context found for query '{request.query}': ---")
+            print(context_text) 
+            print("--------------------------------------------------")
+
+            if not context_text:
+                return brain_pb2.ChatResponse(answer="I couldn't find any relevant information in your documents.")
+
+            # 2. GENERATE: Minta Qwen menjawab berdasarkan konteks tersebut
+            # Kita beri instruksi ketat agar AI tidak ngawur (halusinasi)
+            prompt = f"""
+            You are SecondBrain AI, a professional assistant. 
+            Answer the user's question accurately using ONLY the context provided below.
+            
+            [CONTEXT]
+            {context_text}
+            
+            [QUESTION]
+            {request.query}
+            
+            [INSTRUCTION]
+            - Answer in a direct and professional manner.
+            - If the information is not in the context, say: "I'm sorry, I don't have that information in my current database."
+            """
+
+            # Call Ollama (Qwen)
+            response = ollama.generate(model='qwen2.5:3b', prompt=prompt)
+
+            return brain_pb2.ChatResponse(answer=response['response'])
+
+        except Exception as e:
+            print(f"Error in Chat: {e}")
+            return brain_pb2.ChatResponse(answer=f"Error processing your request: {str(e)}")
 
 # start server
 def serve():
