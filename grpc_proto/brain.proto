@@ -7,6 +7,7 @@ option go_package = "./proto";
 service BrainService {
   // Go akan memanggil fungsi ini, mengirim dokumen, lalu Python membalas statusnya
   rpc ProcessDocument (DocumentRequest) returns (DocumentResponse);
+  rpc Chat (ChatRequest) returns (ChatResponse);
 }
 
 // Data yang dikirim dari Go ke Python
@@ -21,4 +22,12 @@ message DocumentResponse {
   bool success = 1;
   string message = 2;
   string document_id = 3;
+}
+
+message ChatRequest {
+  string query = 1; // question
+}
+
+message ChatResponse {
+  string answer = 1;
 }

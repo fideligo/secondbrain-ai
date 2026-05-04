@@ -39,6 +39,11 @@ class BrainServiceStub(object):
                 request_serializer=grpc__proto_dot_brain__pb2.DocumentRequest.SerializeToString,
                 response_deserializer=grpc__proto_dot_brain__pb2.DocumentResponse.FromString,
                 _registered_method=True)
+        self.Chat = channel.unary_unary(
+                '/brain.BrainService/Chat',
+                request_serializer=grpc__proto_dot_brain__pb2.ChatRequest.SerializeToString,
+                response_deserializer=grpc__proto_dot_brain__pb2.ChatResponse.FromString,
+                _registered_method=True)
 
 
 class BrainServiceServicer(object):
@@ -51,6 +56,12 @@ class BrainServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Chat(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_BrainServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -58,6 +69,11 @@ def add_BrainServiceServicer_to_server(servicer, server):
                     servicer.ProcessDocument,
                     request_deserializer=grpc__proto_dot_brain__pb2.DocumentRequest.FromString,
                     response_serializer=grpc__proto_dot_brain__pb2.DocumentResponse.SerializeToString,
+            ),
+            'Chat': grpc.unary_unary_rpc_method_handler(
+                    servicer.Chat,
+                    request_deserializer=grpc__proto_dot_brain__pb2.ChatRequest.FromString,
+                    response_serializer=grpc__proto_dot_brain__pb2.ChatResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -87,6 +103,33 @@ class BrainService(object):
             '/brain.BrainService/ProcessDocument',
             grpc__proto_dot_brain__pb2.DocumentRequest.SerializeToString,
             grpc__proto_dot_brain__pb2.DocumentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Chat(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/brain.BrainService/Chat',
+            grpc__proto_dot_brain__pb2.ChatRequest.SerializeToString,
+            grpc__proto_dot_brain__pb2.ChatResponse.FromString,
             options,
             channel_credentials,
             insecure,

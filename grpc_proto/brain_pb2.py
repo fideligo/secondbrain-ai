@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16grpc_proto/brain.proto\x12\x05\x62rain\"E\n\x0f\x44ocumentRequest\x12\x11\n\tfile_name\x18\x01 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\x0c\"I\n\x10\x44ocumentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x13\n\x0b\x64ocument_id\x18\x03 \x01(\t2R\n\x0c\x42rainService\x12\x42\n\x0fProcessDocument\x12\x16.brain.DocumentRequest\x1a\x17.brain.DocumentResponseB\tZ\x07./protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16grpc_proto/brain.proto\x12\x05\x62rain\"E\n\x0f\x44ocumentRequest\x12\x11\n\tfile_name\x18\x01 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\x0c\"I\n\x10\x44ocumentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x13\n\x0b\x64ocument_id\x18\x03 \x01(\t\"\x1c\n\x0b\x43hatRequest\x12\r\n\x05query\x18\x01 \x01(\t\"\x1e\n\x0c\x43hatResponse\x12\x0e\n\x06\x61nswer\x18\x01 \x01(\t2\x83\x01\n\x0c\x42rainService\x12\x42\n\x0fProcessDocument\x12\x16.brain.DocumentRequest\x1a\x17.brain.DocumentResponse\x12/\n\x04\x43hat\x12\x12.brain.ChatRequest\x1a\x13.brain.ChatResponseB\tZ\x07./protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,6 +36,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DOCUMENTREQUEST']._serialized_end=102
   _globals['_DOCUMENTRESPONSE']._serialized_start=104
   _globals['_DOCUMENTRESPONSE']._serialized_end=177
-  _globals['_BRAINSERVICE']._serialized_start=179
-  _globals['_BRAINSERVICE']._serialized_end=261
+  _globals['_CHATREQUEST']._serialized_start=179
+  _globals['_CHATREQUEST']._serialized_end=207
+  _globals['_CHATRESPONSE']._serialized_start=209
+  _globals['_CHATRESPONSE']._serialized_end=239
+  _globals['_BRAINSERVICE']._serialized_start=242
+  _globals['_BRAINSERVICE']._serialized_end=373
 # @@protoc_insertion_point(module_scope)
