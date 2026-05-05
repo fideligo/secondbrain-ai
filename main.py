@@ -6,6 +6,9 @@ import PyPDF2
 from dotenv import load_dotenv
 import chromadb
 from chromadb.utils import embedding_functions
+import tempfile
+import pymupdf4llm
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # import google.generativeai as genai # uncomment if use google ai studio
 import ollama # uncomment if use ollama
@@ -24,24 +27,18 @@ if not api_key:
 # model = genai.GenerativeModel('gemini-2.5-flash') # uncomment if gemini
 
 
-# Buat folder penyimpanan permanen
+# storage
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 
-# Siapkan "mesin" pengubah teks ke angka
-default_ef = embedding_functions.DefaultEmbeddingFunction()
-
-# Buat wadah dokumen
-collection = chroma_client.get_or_create_collection(
-    name="documents", 
-    embedding_function=default_ef
+# text translator
+multilingual_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="paraphrase-multilingual-MiniLM-L12-v2"
 )
 
-def split_text(text, chunk_size=600, overlap=100):
-    chunks = []
-    for i in range(0, len(text), chunk_size - overlap):
-        chunks.append(text[i:i + chunk_size])
-    return chunks
-
+collection = chroma_client.get_or_create_collection(
+    name="documents", 
+    embedding_function=multilingual_ef
+)
 
 class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
@@ -56,17 +53,14 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         document_text = ""
         
         try:
-            # convert raw bytes into a file-like object in memory
-            pdf_stream = io.BytesIO(request.content)
-            pdf_reader = PyPDF2.PdfReader(pdf_stream)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+                temp_pdf.write(request.content)
+                temp_pdf_path = temp_pdf.name
 
-            # Loop through all pages and extract text
-            for page in pdf_reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    document_text += extracted + "\n"
+            document_text = pymupdf4llm.to_markdown(temp_pdf_path)
+            os.remove(temp_pdf_path)
 
-            print(f"   - Extracted : {len(document_text)} characters")
+            print(f"   - Extracted : {len(document_text)} characters (Markdown Format)")
 
         except Exception as e:
             print(f"Error. Failed to extract PDF text: {e}")
@@ -76,21 +70,36 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
                 document_id="ERROR-PDF-001"
             )
 
-        print("Starting document analysis...")
+        print("Starting document analysis & Chunking...")
 
         # PROMPT TO AI
         prompt = f"""
-        [STRICT INSTRUCTIONS]
-        - You MUST answer in ENGLISH.
-        - You MUST start the response by saying: "Hello {request.author}, here is your SecondBrain analysis:"
-        - Provide a VERY BRIEF executive summary.
-        - Focus ONLY on the provided content.
+        You are SecondBrain AI, an expert Executive Summarizer and Knowledge Extractor.
+        Your task is to analyze the provided document text and generate a highly accurate, structured, and concise executive summary.
 
-        [DOCUMENT CONTENT]
+        [DOCUMENT TEXT]
         {document_text}
 
-        [RE-CONFIRMATION]
-        Remember, {request.author}, answer in ENGLISH and stay concise.
+        [STRICT INSTRUCTIONS]
+        1. GREETING: You MUST start your response exactly with: "Hello {request.author}, here is the summary of your document:"
+        2. OCR NOISE REDUCTION: The text is extracted from a PDF and may contain irregular spacing, missing punctuation, or fragmented words. Mentally reconstruct the text to understand its true meaning before summarizing.
+        3. NO HALLUCINATION: Base your summary EXCLUSIVELY on the provided text. Do not add outside information or personal opinions.
+        4. TONE & LENGTH: Be professional, objective, and clear.
+
+        [REQUIRED OUTPUT FORMAT]
+        Strictly use the following Markdown structure for your response:
+
+        **Document Overview:**
+        (Provide 1-3 sentences explaining the main topic, purpose, or core theme of the document)
+
+        **Key Takeaways:**
+        - (Bullet point 1: The most critical fact, argument, or data point)
+        - (Bullet point 2: Another crucial insight)
+        - (Bullet point 3: Another crucial insight)
+        - (Add 1-2 more bullet points only if absolutely necessary)
+
+        **Conclusion / Outcome:**
+        (Provide a 1-sentence wrap-up, final decision, or next steps if mentioned in the text. If none, summarize the final thought.)
         """
 
         try:
@@ -101,7 +110,14 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             # ai_response = response.text
 
             try:
-                chunks = split_text(document_text)
+                # LangChain Recursive Splitter: Memotong di paragraf (\n\n) dulu, baru kalimat (\n), lalu spasi
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=1200,
+                    chunk_overlap=200,
+                    separators=["\n\n", "\n", " ", ""]
+                )
+                
+                chunks = text_splitter.split_text(document_text)
                 ids = [f"{request.file_name}_{i}" for i in range(len(chunks))]
                 metadatas = [{"source": request.file_name, "author": request.author} for _ in chunks]
 
@@ -110,11 +126,11 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
                     metadatas=metadatas,
                     ids=ids
                 )
-                print(f"   - Saved {len(chunks)} chunks to Vector Database.")
+                print(f"   - Saved {len(chunks)} SMART chunks to Vector Database.")
             except Exception as e:
                 print(f"   - Warning: Failed to save to ChromaDB: {e}")
 
-            # B. AI SUMMARY (Tambah num_predict agar tidak terpotong)
+            # B. AI SUMMARY (add num_predict so it fits)
             response = ollama.generate(
                 model='qwen2.5:3b',
                 prompt=prompt,
@@ -141,7 +157,7 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         # returning to go
         return brain_pb2.DocumentResponse(
             success=success_status,
-            message=ai_response, # Kita kirim jawaban AI ke Go!
+            message=ai_response,
             document_id="DOC-GEMINI-001"
         )
     
@@ -170,18 +186,20 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             # 2. GENERATE: Minta Qwen menjawab berdasarkan konteks tersebut
             # Kita beri instruksi ketat agar AI tidak ngawur (halusinasi)
             prompt = f"""
-            You are SecondBrain AI, a professional assistant. 
-            Answer the user's question accurately using ONLY the context provided below.
-            
+            You are an expert Document Intelligence Assistant. Your sole purpose is to answer the user's question with absolute precision, relying EXCLUSIVELY on the provided [CONTEXT].
+
             [CONTEXT]
             {context_text}
-            
-            [QUESTION]
+
+            [USER QUESTION]
             {request.query}
-            
-            [INSTRUCTION]
-            - Answer in a direct and professional manner.
-            - If the information is not in the context, say: "I'm sorry, I don't have that information in my current database."
+
+            [CORE DIRECTIVES]
+            1. STRICT GROUNDING: Formulate your answer using ONLY facts, data, and statements explicitly present in the [CONTEXT]. Do not introduce external knowledge or logical leaps.
+            2. UNIVERSAL ENTITY & RELATIONSHIP ACCURACY: Carefully map the relationships between any subjects, numbers, concepts, or events mentioned. Never attribute a property, action, or data point to the wrong entity. Pay close attention to how information is grouped or listed.
+            3. FORMAT NOISE TOLERANCE: The context may contain raw text extracted from various file types, resulting in irregular spacing, broken lines, or typos. Read comprehensively to discern the actual semantic meaning before answering.
+            4. MANDATORY FALLBACK: If the complete answer cannot be explicitly found or reliably deduced from the [CONTEXT], you MUST reply exactly with: "I'm sorry, I don't have that information in my current database." Do not provide partial, hallucinated, or guessed answers.
+            5. RESPONSE STYLE: Be direct, concise, and professional. State the answer clearly without unnecessary filler.
             """
 
             # Call Ollama (Qwen)
