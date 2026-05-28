@@ -12,3 +12,6 @@ __pycache__/
 
 # Development
 cek_model.py
+
+# Database
+chroma_data/
