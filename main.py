@@ -165,15 +165,19 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         print(f"Incoming query: {request.query}")
 
         try:
-            # 1. SEARCH: Cari 3 potongan teks paling relevan di ChromaDB
-            # Ini akan mencari teks berdasarkan "makna", bukan cuma kata kunci
             results = collection.query(
                 query_texts=[request.query],
-                n_results=7
+                n_results=15,
+                include=['documents', 'metadatas']
             )
 
-            # Gabungkan potongan teks yang ditemukan menjadi satu paragraf konteks
-            context_text = "\n".join(results['documents'][0]) if results['documents'] else ""
+            context_text = ""
+            if results['documents'] and len(results['documents'][0]) > 0:
+                for i, doc_chunk in enumerate(results['documents'][0]):
+                    metadata = results['metadatas'][0][i]
+                    filename = metadata.get('source', 'Unknown Document')
+                    
+                    context_text += f"[Sumber: {filename}]\n{doc_chunk}\n\n"
 
             # DEBUG: Print teks yang ditemukan ke terminal Python
             print(f"--- Context found for query '{request.query}': ---")
@@ -185,25 +189,51 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
             # 2. GENERATE: Minta Qwen menjawab berdasarkan konteks tersebut
             # Kita beri instruksi ketat agar AI tidak ngawur (halusinasi)
-            prompt = f"""
-            You are an expert Document Intelligence Assistant. Your sole purpose is to answer the user's question with absolute precision, relying EXCLUSIVELY on the provided [CONTEXT].
+            prompt = f"""Anda adalah Analis Data Khusus Dokumen yang sangat teliti. Tugas Anda adalah menjawab pertanyaan pengguna SECARA EKSKLUSIF berdasarkan informasi di dalam <context> yang diberikan.
 
-            [CONTEXT]
+            <context>
             {context_text}
+            </context>
 
-            [USER QUESTION]
+            <user_query>
             {request.query}
+            </user_query>
 
-            [CORE DIRECTIVES]
-            1. STRICT GROUNDING: Formulate your answer using ONLY facts, data, and statements explicitly present in the [CONTEXT]. Do not introduce external knowledge or logical leaps.
-            2. UNIVERSAL ENTITY & RELATIONSHIP ACCURACY: Carefully map the relationships between any subjects, numbers, concepts, or events mentioned. Never attribute a property, action, or data point to the wrong entity. Pay close attention to how information is grouped or listed.
-            3. FORMAT NOISE TOLERANCE: The context may contain raw text extracted from various file types, resulting in irregular spacing, broken lines, or typos. Read comprehensively to discern the actual semantic meaning before answering.
-            4. MANDATORY FALLBACK: If the complete answer cannot be explicitly found or reliably deduced from the [CONTEXT], you MUST reply exactly with: "I'm sorry, I don't have that information in my current database." Do not provide partial, hallucinated, or guessed answers.
-            5. RESPONSE STYLE: Be direct, concise, and professional. State the answer clearly without unnecessary filler.
-            """
+            <aturan_wajib>
+            1. BAHASA: Anda WAJIB menjawab sepenuhnya dalam Bahasa Indonesia yang baik dan benar.
+            2. ANTI-HALUSINASI: JANGAN PERNAH menambahkan informasi, pengetahuan umum, opini, atau asumsi dari luar <context>. 
+            3. ISOLASI PROYEK (SANGAT PENTING): <context> berisi gabungan dari beberapa proyek yang berbeda (ditandai dengan [Sumber: nama_file]). JANGAN MENCAMPURADUKKAN FITUR ANTAR PROYEK! JantungSinyal dan Hapta adalah dua alat yang sama sekali berbeda. Pastikan fitur bayi hanya untuk JantungSinyal, dan fitur pesepeda hanya untuk Hapta.
+            4. JALUR AMAN: Jika <user_query> hanya berupa sapaan, error terminal, obrolan santai, atau informasinya benar-benar tidak ada di dalam <context>, Anda WAJIB membatalkan template dan HANYA menjawab: "Maaf, saya tidak menemukan informasi tersebut di dokumen Anda."
+            </aturan_wajib>
 
-            # Call Ollama (Qwen)
-            response = ollama.generate(model='qwen2.5:3b', prompt=prompt)
+            <format_jawaban>
+            JIKA pertanyaan pengguna meminta untuk membandingkan atau membahas kedua ide lomba, Anda WAJIB menjawab dengan mengisi template persis seperti di bawah ini:
+
+            ### Ringkasan JantungSinyal
+            - **Fungsi Utama:** [Isi dengan fungsi utama berdasarkan konteks JantungSinyal]
+            - **Target Pengguna:** [Isi dengan audiens/target berdasarkan konteks JantungSinyal]
+            - **Teknologi Utama:** [Isi dengan sensor/teknologi berdasarkan konteks JantungSinyal]
+
+            ### Ringkasan Hapta
+            - **Fungsi Utama:** [Isi dengan fungsi utama berdasarkan konteks Hapta]
+            - **Target Pengguna:** [Isi dengan audiens/target berdasarkan konteks Hapta]
+            - **Teknologi Utama:** [Isi dengan sensor/teknologi berdasarkan konteks Hapta]
+
+            ### Perbedaan Utama
+            - **Fokus Solusi:** [Tuliskan perbandingan tujuan utama kedua alat]
+            - **Implementasi Perangkat:** [Tuliskan perbandingan bentuk fisik atau teknologi yang dipakai]
+            </format_jawaban>
+
+            Berdasarkan <aturan_wajib>, berikan jawaban Anda sekarang:"""
+
+            response = ollama.generate(
+                model='qwen2.5:3b', 
+                prompt=prompt,
+                options={
+                    "temperature": 0.1, # Pastikan tetap rendah agar tidak halusinasi
+                    "num_predict": 800
+                }
+            )
 
             return brain_pb2.ChatResponse(answer=response['response'])
 
