@@ -10,8 +10,5 @@ __pycache__/
 .vscode/
 .idea/
 
-# Development
-cek_model.py
-
 # Database
 chroma_data/
