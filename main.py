@@ -10,22 +10,21 @@ import tempfile
 import pymupdf4llm
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# import google.generativeai as genai # uncomment if use google ai studio
-import ollama # uncomment if use ollama
+from openai import OpenAI
 
 import grpc_proto.brain_pb2 as brain_pb2
 import grpc_proto.brain_pb2_grpc as brain_pb2_grpc
 
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+nvidia_api_key = os.getenv("NVIDIA_API_KEY")
 
-if not api_key:
-    raise ValueError("GEMINI_API_KEY not set!")
+if not nvidia_api_key:
+    raise ValueError("NVIDIA_API_KEY not set in .env file!")
 
-# genai.configure(api_key=api_key) # uncomment if gemini
-
-# model = genai.GenerativeModel('gemini-2.5-flash') # uncomment if gemini
-
+client = OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=nvidia_api_key
+)
 
 # storage
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
@@ -105,12 +104,7 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         try:
             # Call AI
 
-            # uncomment if gemini
-            # response = model.generate_content(prompt)
-            # ai_response = response.text
-
             try:
-                # LangChain Recursive Splitter: Memotong di paragraf (\n\n) dulu, baru kalimat (\n), lalu spasi
                 text_splitter = RecursiveCharacterTextSplitter(
                     chunk_size=1200,
                     chunk_overlap=200,
@@ -131,16 +125,17 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
                 print(f"   - Warning: Failed to save to ChromaDB: {e}")
 
             # B. AI SUMMARY (add num_predict so it fits)
-            response = ollama.generate(
-                model='qwen2.5:3b',
-                prompt=prompt,
-                options={
-                    "num_predict": 1500,
-                    "temperature": 0.1,
-                    "top_p": 0.9
-                }
+            print("Requesting summary from NVIDIA NIM...")
+            completion = client.chat.completions.create(
+                model="meta/llama-3.1-8b-instruct",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                top_p=0.7,
+                max_tokens=1024,
+                stream=False
             )
-            ai_response = response['response']
+            ai_response = completion.choices[0].message.content
+            
             print("[SUCCESS] AI analysis completed.")
             success_status = True
 
@@ -187,55 +182,99 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             if not context_text:
                 return brain_pb2.ChatResponse(answer="I couldn't find any relevant information in your documents.")
 
-            # 2. GENERATE: Minta Qwen menjawab berdasarkan konteks tersebut
-            # Kita beri instruksi ketat agar AI tidak ngawur (halusinasi)
-            prompt = f"""Anda adalah Analis Data Khusus Dokumen yang sangat teliti. Tugas Anda adalah menjawab pertanyaan pengguna SECARA EKSKLUSIF berdasarkan informasi di dalam <context> yang diberikan.
+            chat_history_text = ""
+            if len(request.history) >0:
+                for msg in request.history:
+                    role_label = "User" if msg.role == "user" else "AI"
+                    chat_history_text += f"{role_label}: {msg.content}\n"
 
-            <context>
-            {context_text}
-            </context>
+            prompt = f"""You are SecondBrain, a precise Document Intelligence assistant operating as a strict RAG (Retrieval-Augmented Generation) system.
+ 
+<context>
+{context_text}
+</context>
+ 
+<chat_history>
+{chat_history_text}
+</chat_history>
+ 
+<user_query>
+{request.query}
+</user_query>
+ 
+---
+ 
+## ABSOLUTE RULES
+ 
+**1. LANGUAGE**
+Detect the language of <user_query>.
+Write your ENTIRE response in that exact language — every word, header, bullet point, and label.
+Never default to any specific language. Mirror the user's language precisely, even if it differs from the document language.
+ 
+**2. CONTEXT LOCK — ZERO HALLUCINATION**
+Your ONLY source of truth is the content inside the current <context> block above.
+- Every claim, number, name, date, and conclusion MUST be directly traceable to <context>.
+- Do NOT use your training knowledge, general assumptions, or anything outside <context>.
+- Do NOT blend information from <chat_history> into factual answers — use <chat_history> only to resolve ambiguous references (e.g., "it", "that document", "the previous topic").
+- If a detail is not explicitly stated in <context>, do not infer or extrapolate it.
+ 
+**3. DOCUMENT ISOLATION**
+Each document in <context> is separated by a [Source: filename] tag. Treat each as a fully independent document.
+- Never transfer, merge, or blend information from one source into another.
+- Only reference multiple sources together when the user explicitly asks for comparison or cross-document analysis.
+ 
+**4. GRACEFUL FALLBACK**
+If the requested information is entirely absent from <context>:
+- Do NOT guess or answer from outside knowledge.
+- Respond briefly and politely — in the user's language — that the information is not found in the provided documents.
+- Do not speculate or suggest what the answer "might" be.
+ 
+**5. INLINE CITATION**
+When stating key facts, naturally reference the source document by name.
+Example patterns: "According to [filename]..." / "Berdasarkan [nama_file]..." / "D'après [nom_fichier]..."
+Match the citation phrasing to whatever language the user is writing in.
+ 
+---
+ 
+## RESPONSE FORMAT
+ 
+Adapt your structure based on what the user is asking — do not force a rigid template onto every query.
+ 
+**Direct question / specific lookup**
+→ Answer concisely and precisely. One to a few paragraphs. Cite source inline.
+ 
+**Single document summary**
+→ Structure your summary to match the document's nature:
+   - What is this document about? (main topic / purpose)
+   - What are the key points or arguments?
+   - What are the important supporting details, data, or findings?
+   - What conclusions or outcomes are stated (if any)?
+   
+   Adapt the depth and shape to the document type. A contract, a research paper, a transcript, and a financial report each warrant a different summary structure. Do not use the same rigid format for all.
+ 
+**Multi-document comparison** (only when explicitly requested)
+→ Dedicate a clearly labeled section to each document, then write a comparative analysis.
+→ Translate all section headers to the user's language.
+→ Highlight similarities and key differences based strictly on <context>.
+ 
+**Follow-up / contextual question**
+→ Use <chat_history> to understand the reference, then answer from <context>.
+ 
+---
+ 
+Response:"""
 
-            <user_query>
-            {request.query}
-            </user_query>
-
-            <aturan_wajib>
-            1. BAHASA: Anda WAJIB menjawab sepenuhnya dalam Bahasa Indonesia yang baik dan benar.
-            2. ANTI-HALUSINASI: JANGAN PERNAH menambahkan informasi, pengetahuan umum, opini, atau asumsi dari luar <context>. 
-            3. ISOLASI PROYEK (SANGAT PENTING): <context> berisi gabungan dari beberapa proyek yang berbeda (ditandai dengan [Sumber: nama_file]). JANGAN MENCAMPURADUKKAN FITUR ANTAR PROYEK! JantungSinyal dan Hapta adalah dua alat yang sama sekali berbeda. Pastikan fitur bayi hanya untuk JantungSinyal, dan fitur pesepeda hanya untuk Hapta.
-            4. JALUR AMAN: Jika <user_query> hanya berupa sapaan, error terminal, obrolan santai, atau informasinya benar-benar tidak ada di dalam <context>, Anda WAJIB membatalkan template dan HANYA menjawab: "Maaf, saya tidak menemukan informasi tersebut di dokumen Anda."
-            </aturan_wajib>
-
-            <format_jawaban>
-            JIKA pertanyaan pengguna meminta untuk membandingkan atau membahas kedua ide lomba, Anda WAJIB menjawab dengan mengisi template persis seperti di bawah ini:
-
-            ### Ringkasan JantungSinyal
-            - **Fungsi Utama:** [Isi dengan fungsi utama berdasarkan konteks JantungSinyal]
-            - **Target Pengguna:** [Isi dengan audiens/target berdasarkan konteks JantungSinyal]
-            - **Teknologi Utama:** [Isi dengan sensor/teknologi berdasarkan konteks JantungSinyal]
-
-            ### Ringkasan Hapta
-            - **Fungsi Utama:** [Isi dengan fungsi utama berdasarkan konteks Hapta]
-            - **Target Pengguna:** [Isi dengan audiens/target berdasarkan konteks Hapta]
-            - **Teknologi Utama:** [Isi dengan sensor/teknologi berdasarkan konteks Hapta]
-
-            ### Perbedaan Utama
-            - **Fokus Solusi:** [Tuliskan perbandingan tujuan utama kedua alat]
-            - **Implementasi Perangkat:** [Tuliskan perbandingan bentuk fisik atau teknologi yang dipakai]
-            </format_jawaban>
-
-            Berdasarkan <aturan_wajib>, berikan jawaban Anda sekarang:"""
-
-            response = ollama.generate(
-                model='qwen2.5:3b', 
-                prompt=prompt,
-                options={
-                    "temperature": 0.1, # Pastikan tetap rendah agar tidak halusinasi
-                    "num_predict": 800
-                }
+            completion = client.chat.completions.create(
+                model="meta/llama-3.1-8b-instruct",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                top_p=0.7,
+                max_tokens=1024,
+                stream=False
             )
 
-            return brain_pb2.ChatResponse(answer=response['response'])
+            ai_response = completion.choices[0].message.content
+            return brain_pb2.ChatResponse(answer=ai_response)
 
         except Exception as e:
             print(f"Error in Chat: {e}")
