@@ -66,7 +66,6 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             return brain_pb2.DocumentResponse(
                 success=False,
                 message=f"System failed to read the PDF file: {str(e)}",
-                document_id="ERROR-PDF-001"
             )
 
         print("Starting document analysis & Chunking...")
@@ -153,7 +152,6 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         return brain_pb2.DocumentResponse(
             success=success_status,
             message=ai_response,
-            document_id="DOC-GEMINI-001"
         )
     
     def Chat(self, request, context):
@@ -190,79 +188,79 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
 
             prompt = f"""You are SecondBrain, a precise Document Intelligence assistant operating as a strict RAG (Retrieval-Augmented Generation) system.
  
-<context>
-{context_text}
-</context>
- 
-<chat_history>
-{chat_history_text}
-</chat_history>
- 
-<user_query>
-{request.query}
-</user_query>
- 
----
- 
-## ABSOLUTE RULES
- 
-**1. LANGUAGE**
-Detect the language of <user_query>.
-Write your ENTIRE response in that exact language — every word, header, bullet point, and label.
-Never default to any specific language. Mirror the user's language precisely, even if it differs from the document language.
- 
-**2. CONTEXT LOCK — ZERO HALLUCINATION**
-Your ONLY source of truth is the content inside the current <context> block above.
-- Every claim, number, name, date, and conclusion MUST be directly traceable to <context>.
-- Do NOT use your training knowledge, general assumptions, or anything outside <context>.
-- Do NOT blend information from <chat_history> into factual answers — use <chat_history> only to resolve ambiguous references (e.g., "it", "that document", "the previous topic").
-- If a detail is not explicitly stated in <context>, do not infer or extrapolate it.
- 
-**3. DOCUMENT ISOLATION**
-Each document in <context> is separated by a [Source: filename] tag. Treat each as a fully independent document.
-- Never transfer, merge, or blend information from one source into another.
-- Only reference multiple sources together when the user explicitly asks for comparison or cross-document analysis.
- 
-**4. GRACEFUL FALLBACK**
-If the requested information is entirely absent from <context>:
-- Do NOT guess or answer from outside knowledge.
-- Respond briefly and politely — in the user's language — that the information is not found in the provided documents.
-- Do not speculate or suggest what the answer "might" be.
- 
-**5. INLINE CITATION**
-When stating key facts, naturally reference the source document by name.
-Example patterns: "According to [filename]..." / "Berdasarkan [nama_file]..." / "D'après [nom_fichier]..."
-Match the citation phrasing to whatever language the user is writing in.
- 
----
- 
-## RESPONSE FORMAT
- 
-Adapt your structure based on what the user is asking — do not force a rigid template onto every query.
- 
-**Direct question / specific lookup**
-→ Answer concisely and precisely. One to a few paragraphs. Cite source inline.
- 
-**Single document summary**
-→ Structure your summary to match the document's nature:
-   - What is this document about? (main topic / purpose)
-   - What are the key points or arguments?
-   - What are the important supporting details, data, or findings?
-   - What conclusions or outcomes are stated (if any)?
-   
-   Adapt the depth and shape to the document type. A contract, a research paper, a transcript, and a financial report each warrant a different summary structure. Do not use the same rigid format for all.
- 
-**Multi-document comparison** (only when explicitly requested)
-→ Dedicate a clearly labeled section to each document, then write a comparative analysis.
-→ Translate all section headers to the user's language.
-→ Highlight similarities and key differences based strictly on <context>.
- 
-**Follow-up / contextual question**
-→ Use <chat_history> to understand the reference, then answer from <context>.
- 
----
- 
-Response:"""
+                <context>
+                {context_text}
+                </context>
+                
+                <chat_history>
+                {chat_history_text}
+                </chat_history>
+                
+                <user_query>
+                {request.query}
+                </user_query>
+                
+                ---
+                
+                ## ABSOLUTE RULES
+                
+                **1. LANGUAGE**
+                Detect the language of <user_query>.
+                Write your ENTIRE response in that exact language — every word, header, bullet point, and label.
+                Never default to any specific language. Mirror the user's language precisely, even if it differs from the document language.
+                
+                **2. CONTEXT LOCK — ZERO HALLUCINATION**
+                Your ONLY source of truth is the content inside the current <context> block above.
+                - Every claim, number, name, date, and conclusion MUST be directly traceable to <context>.
+                - Do NOT use your training knowledge, general assumptions, or anything outside <context>.
+                - Do NOT blend information from <chat_history> into factual answers — use <chat_history> only to resolve ambiguous references (e.g., "it", "that document", "the previous topic").
+                - If a detail is not explicitly stated in <context>, do not infer or extrapolate it.
+                
+                **3. DOCUMENT ISOLATION**
+                Each document in <context> is separated by a [Source: filename] tag. Treat each as a fully independent document.
+                - Never transfer, merge, or blend information from one source into another.
+                - Only reference multiple sources together when the user explicitly asks for comparison or cross-document analysis.
+                
+                **4. GRACEFUL FALLBACK**
+                If the requested information is entirely absent from <context>:
+                - Do NOT guess or answer from outside knowledge.
+                - Respond briefly and politely — in the user's language — that the information is not found in the provided documents.
+                - Do not speculate or suggest what the answer "might" be.
+                
+                **5. INLINE CITATION**
+                When stating key facts, naturally reference the source document by name.
+                Example patterns: "According to [filename]..." / "Berdasarkan [nama_file]..." / "D'après [nom_fichier]..."
+                Match the citation phrasing to whatever language the user is writing in.
+                
+                ---
+                
+                ## RESPONSE FORMAT
+                
+                Adapt your structure based on what the user is asking — do not force a rigid template onto every query.
+                
+                **Direct question / specific lookup**
+                → Answer concisely and precisely. One to a few paragraphs. Cite source inline.
+                
+                **Single document summary**
+                → Structure your summary to match the document's nature:
+                - What is this document about? (main topic / purpose)
+                - What are the key points or arguments?
+                - What are the important supporting details, data, or findings?
+                - What conclusions or outcomes are stated (if any)?
+                
+                Adapt the depth and shape to the document type. A contract, a research paper, a transcript, and a financial report each warrant a different summary structure. Do not use the same rigid format for all.
+                
+                **Multi-document comparison** (only when explicitly requested)
+                → Dedicate a clearly labeled section to each document, then write a comparative analysis.
+                → Translate all section headers to the user's language.
+                → Highlight similarities and key differences based strictly on <context>.
+                
+                **Follow-up / contextual question**
+                → Use <chat_history> to understand the reference, then answer from <context>.
+                
+                ---
+                
+                Response:"""
 
             completion = client.chat.completions.create(
                 model="meta/llama-3.1-8b-instruct",
@@ -279,6 +277,58 @@ Response:"""
         except Exception as e:
             print(f"Error in Chat: {e}")
             return brain_pb2.ChatResponse(answer=f"Error processing your request: {str(e)}")
+        
+    def ProcessNote(self, request, context):
+        print(f"Raw Note received by AI Engine.")
+        
+        note_title = request.title.strip() if request.title else ""
+        if not note_title:
+            note_title = request.content.strip()[:30]
+            if len(request.content.strip()) > 30:
+                note_title += "..."
+
+        print(f"   - Title   : {note_title}")
+        print(f"   - Author  : {request.author}")
+
+        document_text = f"Note Title: {note_title}\nAuthor: {request.author}\n\nNote Content:\n{request.content}"
+
+        print("Starting note analysis & Chunking...")
+
+        try:
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1200,
+                chunk_overlap=200,
+                separators=["\n\n", "\n", " ", ""]
+            )
+            
+            chunks = text_splitter.split_text(document_text)
+            
+            safe_title = "".join(e for e in note_title if e.isalnum())
+            ids = [f"NOTE_{safe_title}_{i}" for i in range(len(chunks))]
+            
+            metadatas = [{"source": f"Note: {note_title}", "author": request.author} for _ in chunks]
+
+            collection.add(
+                documents=chunks,
+                metadatas=metadatas,
+                ids=ids
+            )
+            print(f"   - Saved {len(chunks)} SMART chunks from Note to Vector Database.")
+            
+            success_status = True
+            ai_response = "Note successfully ingested and permanently saved to AI memory."
+
+        except Exception as e:
+            print(f"[ERROR] Note processing failed: {e}")
+            ai_response = f"Failed to save note: {str(e)}"
+            success_status = False
+
+        print("Dispatching note response back to Go Gateway.")
+
+        return brain_pb2.DocumentResponse(
+            success=success_status,
+            message=ai_response,
+        )
 
 # start server
 def serve():
