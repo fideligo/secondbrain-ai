@@ -8,6 +8,7 @@ service BrainService {
   rpc ProcessDocument (DocumentRequest) returns (DocumentResponse);
   rpc Chat (ChatRequest) returns (ChatResponse);
   rpc ProcessNote (NoteRequest) returns (DocumentResponse);
+  rpc DeleteMemory (DeleteRequest) returns (DeleteResponse);
 }
 
 message DocumentRequest {
@@ -40,4 +41,13 @@ message ChatMessage {
 message ChatRequest {
   string query = 1;
   repeated ChatMessage history = 2;
+}
+
+message DeleteRequest {
+  string source_name = 1;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  string message = 2;
 }

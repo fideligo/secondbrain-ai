@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16grpc_proto/brain.proto\x12\x05\x62rain\"E\n\x0f\x44ocumentRequest\x12\x11\n\tfile_name\x18\x01 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\x0c\"=\n\x0bNoteRequest\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"I\n\x10\x44ocumentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x13\n\x0b\x64ocument_id\x18\x03 \x01(\t\"\x1e\n\x0c\x43hatResponse\x12\x0e\n\x06\x61nswer\x18\x01 \x01(\t\",\n\x0b\x43hatMessage\x12\x0c\n\x04role\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"A\n\x0b\x43hatRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12#\n\x07history\x18\x02 \x03(\x0b\x32\x12.brain.ChatMessage2\xbf\x01\n\x0c\x42rainService\x12\x42\n\x0fProcessDocument\x12\x16.brain.DocumentRequest\x1a\x17.brain.DocumentResponse\x12/\n\x04\x43hat\x12\x12.brain.ChatRequest\x1a\x13.brain.ChatResponse\x12:\n\x0bProcessNote\x12\x12.brain.NoteRequest\x1a\x17.brain.DocumentResponseB\tZ\x07./protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x16grpc_proto/brain.proto\x12\x05\x62rain\"E\n\x0f\x44ocumentRequest\x12\x11\n\tfile_name\x18\x01 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\x0c\"=\n\x0bNoteRequest\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0e\n\x06\x61uthor\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"I\n\x10\x44ocumentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x13\n\x0b\x64ocument_id\x18\x03 \x01(\t\"\x1e\n\x0c\x43hatResponse\x12\x0e\n\x06\x61nswer\x18\x01 \x01(\t\",\n\x0b\x43hatMessage\x12\x0c\n\x04role\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"A\n\x0b\x43hatRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12#\n\x07history\x18\x02 \x03(\x0b\x32\x12.brain.ChatMessage\"$\n\rDeleteRequest\x12\x13\n\x0bsource_name\x18\x01 \x01(\t\"2\n\x0e\x44\x65leteResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xfc\x01\n\x0c\x42rainService\x12\x42\n\x0fProcessDocument\x12\x16.brain.DocumentRequest\x1a\x17.brain.DocumentResponse\x12/\n\x04\x43hat\x12\x12.brain.ChatRequest\x1a\x13.brain.ChatResponse\x12:\n\x0bProcessNote\x12\x12.brain.NoteRequest\x1a\x17.brain.DocumentResponse\x12;\n\x0c\x44\x65leteMemory\x12\x14.brain.DeleteRequest\x1a\x15.brain.DeleteResponseB\tZ\x07./protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -44,6 +44,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CHATMESSAGE']._serialized_end=318
   _globals['_CHATREQUEST']._serialized_start=320
   _globals['_CHATREQUEST']._serialized_end=385
-  _globals['_BRAINSERVICE']._serialized_start=388
-  _globals['_BRAINSERVICE']._serialized_end=579
+  _globals['_DELETEREQUEST']._serialized_start=387
+  _globals['_DELETEREQUEST']._serialized_end=423
+  _globals['_DELETERESPONSE']._serialized_start=425
+  _globals['_DELETERESPONSE']._serialized_end=475
+  _globals['_BRAINSERVICE']._serialized_start=478
+  _globals['_BRAINSERVICE']._serialized_end=730
 # @@protoc_insertion_point(module_scope)

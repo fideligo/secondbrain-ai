@@ -158,27 +158,34 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
         print(f"Incoming query: {request.query}")
 
         try:
-            results = collection.query(
-                query_texts=[request.query],
-                n_results=15,
-                include=['documents', 'metadatas']
-            )
+            db_count = collection.count()
+        except Exception:
+            db_count = 0
 
+        try:
             context_text = ""
-            if results['documents'] and len(results['documents'][0]) > 0:
-                for i, doc_chunk in enumerate(results['documents'][0]):
-                    metadata = results['metadatas'][0][i]
-                    filename = metadata.get('source', 'Unknown Document')
-                    
-                    context_text += f"[Sumber: {filename}]\n{doc_chunk}\n\n"
+            
+            if db_count > 0:
+                results = collection.query(
+                    query_texts=[request.query],
+                    n_results=15,
+                    include=['documents', 'metadatas']
+                )
 
-            # DEBUG: Print teks yang ditemukan ke terminal Python
+                if results['documents'] and len(results['documents'][0]) > 0:
+                    for i, doc_chunk in enumerate(results['documents'][0]):
+                        metadata = results['metadatas'][0][i]
+
+                        if metadata is None:
+                            metadata = {}
+
+                        filename = metadata.get('source', 'Unknown Document')
+                        
+                        context_text += f"[Source: {filename}]\n{doc_chunk}\n\n"
+
             print(f"--- Context found for query '{request.query}': ---")
             print(context_text) 
             print("--------------------------------------------------")
-
-            if not context_text:
-                return brain_pb2.ChatResponse(answer="I couldn't find any relevant information in your documents.")
 
             chat_history_text = ""
             if len(request.history) >0:
@@ -329,6 +336,18 @@ class BrainService(brain_pb2_grpc.BrainServiceServicer):
             success=success_status,
             message=ai_response,
         )
+    
+    def DeleteMemory(self, request, context):
+        print(f"Delete request received for source: {request.source_name}")
+        try:
+            collection.delete(
+                where={"source": request.source_name}
+            )
+            print(f"[SUCCESS] Vector memory for '{request.source_name}' has been wiped.")
+            return brain_pb2.DeleteResponse(success=True, message="Memory wiped successfully.")
+        except Exception as e:
+            print(f"[ERROR] Failed to delete memory: {e}")
+            return brain_pb2.DeleteResponse(success=False, message=str(e))
 
 # start server
 def serve():
