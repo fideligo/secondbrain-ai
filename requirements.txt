@@ -1,0 +1,11 @@
+grpcio
+grpcio-tools
+protobuf
+PyPDF2==3.0.1
+python-dotenv==1.0.1
+chromadb==0.5.0
+pymupdf4llm
+langchain-text-splitters==0.2.1
+openai
+numpy<2.0.0
+sentence-transformers
